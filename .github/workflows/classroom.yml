@@ -1,0 +1,62 @@
+name: Autograding Tests
+'on':
+  - push
+  - repository_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest flake8 pylint
+
+      - name: Functionality tests
+        id: tests
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: StringCalculator - pytest
+          command: "bash -lc 'export PYTHONPATH=\"$GITHUB_WORKSPACE:.\"; pytest -q tests/test_string_calculator.py --maxfail=1 --disable-warnings --import-mode=importlib'"
+          timeout: 5
+          max-score: 6
+
+      - name: flake8 style check
+        id: flake8
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: CodeStyle - flake8
+          command: 'flake8 src/string_calculator.py'
+          timeout: 2
+          max-score: 2
+
+      - name: pylint quality score
+        id: pylint
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: CodeQuality - pylint (>= 8.0)
+          command: 'pylint src/ --fail-under=8.0 -j 0'
+          timeout: 3
+          max-score: 2
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          TESTS_RESULTS:   "${{ steps.tests.outputs.result }}"
+          FLAKE8_RESULTS:  "${{ steps.flake8.outputs.result }}"
+          PYLINT_RESULTS:  "${{ steps.pylint.outputs.result }}"
+        with:
+          runners: tests,flake8,pylint
